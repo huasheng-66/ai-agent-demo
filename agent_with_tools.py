@@ -1,6 +1,7 @@
 import ollama
 import json
 from tools import TOOLS as BASE_TOOLS
+from tools import filter_excel, scan_files, get_current_time, calculator  # 新增
 from tools_legacy import (
     summarize_document,
     send_email,
@@ -10,26 +11,82 @@ from tools_legacy import (
 
 # ===== 合并所有工具 =====
 TOOLS = {
-    **BASE_TOOLS,  # 原有工具（计算器、时间、Excel筛选、文件扫描）
+    **BASE_TOOLS,
     "summarize_document": {
         "func": summarize_document,
-        "description": "生成文档摘要。参数：filepath(文档路径)"
-    },
-    "send_email": {
-        "func": send_email,
-        "description": "发送邮件。参数：to_email(收件人), subject(主题), body(正文)"
-    },
-    "rename_files": {
-        "func": rename_files,
-        "description": "批量重命名文件。参数：directory(目录), old_text(旧文本), new_text(新文本)"
+        "description": "读取并总结文档内容。当用户要求'总结'、'摘要'、'概括'某个文件时使用。参数：filepath(文件路径，如'article.txt')"
     },
     "generate_daily_report": {
         "func": generate_daily_report,
-        "description": "生成今日日报。无需参数"
+        "description": "生成今日工作报告。当用户要求'生成日报'、'写日报'、'今日报告'时使用。无需参数"
+    },
+    "send_email": {
+        "func": send_email,
+        "description": "发送邮件。参数：to_email(收件人地址), subject(邮件主题), body(邮件正文)"
+    },
+    "rename_files": {
+        "func": rename_files,
+        "description": "批量重命名文件。参数：directory(目录路径), old_text(要替换的文本), new_text(新文本)"
     }
 }
 
 def run_agent(user_goal):
+
+    """Agent：先用规则判断意图，再调用对应工具"""
+    
+    # ===== 意图识别层（100%准确，不依赖AI） =====
+    goal_lower = user_goal.lower()
+    
+    # 规则1：总结文档
+    if "总结" in goal_lower or "摘要" in goal_lower or "概括" in goal_lower:
+        import re
+        # 提取文件名
+        match = re.search(r'(\w+\.\w+)', user_goal)
+        filename = match.group(1) if match else "article.txt"
+        result = summarize_document(filename)
+        return f"✅ 使用 summarize_document，{result}"
+    
+    # 规则2：生成日报
+    if "日报" in goal_lower or "今日报告" in goal_lower or "今天的日报" in goal_lower:
+        result = generate_daily_report()
+        return f"✅ 使用 generate_daily_report，{result}"
+    
+    # 规则3：Excel筛选
+    if "筛选" in goal_lower and ".xlsx" in goal_lower:
+        # 提取文件名、列名、值
+        import re
+        # 匹配：筛选 data.xlsx 中 部门 等于 销售 的行
+        match = re.search(r'筛选\s+(\S+\.xlsx)\s+中\s+(\S+)\s+等于\s+(\S+)', user_goal)
+        if match:
+            filename, column, value = match.groups()
+            result = filter_excel(filename, column, value)
+            return f"✅ 使用 filter_excel，{result}"
+        else:
+            return "无法解析筛选条件，请使用格式：筛选 文件名.xlsx 中 列名 等于 值"
+    
+    # 规则4：计算
+    if "计算" in goal_lower:
+        import re
+        match = re.search(r'计算\s+(.+)', user_goal)
+        if match:
+            result = calculator(match.group(1))
+            return f"✅ 使用 calculator，{result}"
+    
+    # 规则5：时间
+    if "时间" in goal_lower or "几点" in goal_lower:
+        result = get_current_time()
+        return f"✅ 使用 get_current_time，{result}"
+    
+    # 规则6：文件扫描
+    if "扫描" in goal_lower or "文件" in goal_lower:
+        import re
+        match = re.search(r'扫描\s+(\S+)', user_goal)
+        directory = match.group(1) if match else "."
+        result = scan_files(directory)
+        return f"✅ 使用 scan_files，{result}"
+
+    # ===== 如果规则匹配不到，才交给AI =====
+    # ... 原有的 AI 决策逻辑（作为备用）
     """Agent 核心逻辑（和之前一样，但工具更多了）"""
     tools_desc = "\n".join([
         f"- {name}: {info['description']}"
@@ -39,13 +96,21 @@ def run_agent(user_goal):
     prompt = f"""
 你是一个智能助手，用户的目标是：{user_goal}
 
-你可以使用以下工具：
+可用工具列表：
 {tools_desc}
 
-请只回答一个JSON，格式为：
-{{"tool": "工具名称", "params": {{"参数名1": "值1", "参数名2": "值2"}}}}
+**决策规则：**
+1. 如果用户明确要求"总结"、"摘要"某个文件 → 使用 summarize_document
+2. 如果用户要求"生成日报"、"写日报" → 使用 generate_daily_report
+3. 如果用户要求"筛选"Excel数据 → 使用 filter_excel
+4. 如果用户要求"计算" → 使用 calculator
+5. 如果用户要求"时间" → 使用 get_current_time
+6. 如果用户只是打招呼或不需要工具 → 返回 {{"tool": "none"}}
 
-如果不需要工具，回答：
+**返回格式（纯JSON）：**
+{{"tool": "工具名称", "params": {{"参数名": "参数值"}}}}
+
+如果不需要工具：
 {{"tool": "none"}}
 """
     
@@ -54,17 +119,41 @@ def run_agent(user_goal):
         messages=[{'role': 'user', 'content': prompt}]
     )
     
+    # ===== 更健壮的 JSON 解析 =====
     try:
         text = response['message']['content']
-        if '```' in text:
-            text = text.split('```')[1]
-            if text.startswith('json'):
-                text = text[4:]
-        decision = json.loads(text.strip())
+        
+        # 方法1：尝试直接解析
+        try:
+            decision = json.loads(text.strip())
+        except:
+            # 方法2：如果包含```，提取中间的
+            if '```' in text:
+                parts = text.split('```')
+                for part in parts:
+                    part = part.strip()
+                    if part.startswith('json'):
+                        part = part[4:].strip()
+                    try:
+                        decision = json.loads(part)
+                        break
+                    except:
+                        continue
+            else:
+                # 方法3：用正则提取 JSON 对象
+                import re
+                json_match = re.search(r'\{[^{}]*\}', text)
+                if json_match:
+                    try:
+                        decision = json.loads(json_match.group())
+                    except:
+                        raise
+                else:
+                    raise ValueError("未找到有效的 JSON")
     except Exception as e:
-        return f"AI无法理解：{e}"
+        return f"AI无法理解：{e}\n原始回复：{text[:200]}..."
     
-    if decision['tool'] == 'none':
+    if 'tool' not in decision or decision['tool'] == 'none':
         return "已完成，无需使用工具"
     
     if decision['tool'] in TOOLS:
