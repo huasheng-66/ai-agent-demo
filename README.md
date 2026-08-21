@@ -1,0 +1,45 @@
+# 🤖 AI Agent 系统
+
+基于 Ollama 构建的 AI Agent，能自主调用工具完成复杂任务。
+
+## ✨ 功能
+
+- 🧠 AI 自主决策：理解用户目标，选择最合适的工具
+- 🛠️ 8 个内置工具：计算器、Excel筛选、文档摘要、发送邮件、文件扫描、批量重命名、日报生成、获取时间
+- 🔌 可扩展：注册新工具只需 3 行代码
+- 🔒 完全本地运行，数据不上传
+
+## 🛠️ 技术栈
+
+| 工具 | 用途 |
+|------|------|
+| Ollama | 本地 LLM |
+| Python | 核心逻辑 |
+| Pandas | Excel 处理 |
+
+## 🚀 快速开始
+
+```bash
+# 1. 安装依赖
+pip install ollama pandas openpyxl
+
+# 2. 启动 Ollama
+ollama serve
+
+# 3. 运行 Agent
+python agent_with_tools.py
+```
+
+## 🎯 核心流程
+
+用户输入 → AI 理解目标 → 选择工具 → 执行工具 → 返回结果
+
+## 📁 项目结构
+
+├── agent_with_tools.py   # Agent 主程序
+├── tools.py              # 基础工具（计算器、时间）
+└── tools_legacy.py       # 扩展工具（Excel、文档、邮件等）
+
+## 📸 演示
+
+[插入演示视频链接]
