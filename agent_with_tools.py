@@ -8,10 +8,15 @@ from tools_legacy import (
     rename_files,
     generate_daily_report
 )
+from rag_tool import ask_document
 
 # ===== 合并所有工具 =====
 TOOLS = {
     **BASE_TOOLS,
+    "ask_document": {
+        "func": ask_document,
+        "description": "基于文档回答问题（RAG检索增强生成）。当用户问某个文档里的内容时使用。参数：query(问题), doc_path(文档路径，可选)"
+    },
     "summarize_document": {
         "func": summarize_document,
         "description": "读取并总结文档内容。当用户要求'总结'、'摘要'、'概括'某个文件时使用。参数：filepath(文件路径，如'article.txt')"
@@ -77,6 +82,20 @@ def run_agent(user_goal):
         result = get_current_time()
         return f"✅ 使用 get_current_time，{result}"
     
+    # ===== RAG规则（放在扫描前面） =====
+    if "说了什么" in goal_lower or "内容" in goal_lower or "讲" in goal_lower or "是什么" in goal_lower:
+        import re
+        # 提取文件名
+        match = re.search(r'(\w+\.\w+)\s*里', user_goal)
+        if match:
+            filename = match.group(1)
+            result = ask_document(user_goal, filename)
+            return f"✅ 使用 ask_document，{result}"
+        else:
+            # 没有指定文件，尝试用默认的 article.txt
+            result = ask_document(user_goal)
+            return f"✅ 使用 ask_document，{result}"
+
     # 规则6：文件扫描
     if "扫描" in goal_lower or "文件" in goal_lower:
         import re
@@ -186,3 +205,7 @@ if __name__ == "__main__":
     # 测试3：Excel筛选
     print("\n【测试3】用户：筛选 data.xlsx 中 部门 等于 销售 的行")
     print(run_agent("筛选 data.xlsx 中 部门 等于 销售 的行"))
+
+    #测试4：article.txt 里说了什么？
+    print("\n【测试4】用户：article.txt 里说了什么？")
+    print(run_agent("article.txt 里说了什么？"))
