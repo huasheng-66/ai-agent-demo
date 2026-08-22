@@ -17,6 +17,20 @@
 | Python | 核心逻辑 |
 | Pandas | Excel 处理 |
 
+## 🛠️ 内置工具
+
+| 工具名称 | 功能 |
+|---------|------|
+| calculator | 数学计算 |
+| get_current_time | 获取当前时间 |
+| filter_excel | Excel 数据筛选 |
+| scan_files | 文件扫描 |
+| summarize_document | 文档摘要 |
+| send_email | 发送邮件 |
+| rename_files | 批量重命名 |
+| generate_daily_report | 生成日报 |
+| **ask_document** | **RAG 问答（基于文档内容回答问题）** |
+
 ## 🚀 快速开始
 
 ```bash
