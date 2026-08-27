@@ -6,7 +6,10 @@ from tools_legacy import (
     summarize_document,
     send_email,
     rename_files,
-    generate_daily_report
+    generate_daily_report,
+    organize_desktop,
+    find_useless_files,
+    undo_organize_desktop
 )
 from rag_tool import ask_document
 
@@ -32,6 +35,18 @@ TOOLS = {
     "rename_files": {
         "func": rename_files,
         "description": "批量重命名文件。参数：directory(目录路径), old_text(要替换的文本), new_text(新文本)"
+    },
+    "organize_desktop": {
+        "func": organize_desktop,
+        "description": "按文件类型整理桌面。先预览效果，再执行。参数：dry_run(True=预览，False=执行)"
+    },
+    "find_useless_files": {
+        "func": find_useless_files,
+        "description": "扫描无用文件、临时文件、缓存文件和空文件。当用户要求'清理'、'无用文件'、'缓存'、'临时文件'时使用。参数：directory(目录路径，可选)"
+    },
+    "undo_organize_desktop": {
+        "func": undo_organize_desktop,
+        "description": "撤销桌面整理，把刚才整理到各文件夹的文件全部移回桌面。当用户要求'撤销整理'、'恢复文件'时使用。无需参数"
     }
 }
 
@@ -104,6 +119,25 @@ def run_agent(user_goal):
         result = scan_files(directory)
         return f"✅ 使用 scan_files，{result}"
 
+    # 规则7：整理桌面
+    if "整理桌面" in goal_lower or "整理文件" in goal_lower:
+        if "预览" in goal_lower:
+            result = organize_desktop(dry_run=True)
+        else:
+            result = organize_desktop(dry_run=False)
+        return f"✅ 使用 organize_desktop，{result}"
+
+
+    # 规则8：显示无用文件/缓存文件
+    if "无用" in goal_lower or "缓存" in goal_lower or "临时" in goal_lower or "清理" in goal_lower:
+        result = find_useless_files()
+        return f"✅ 使用 find_useless_files，{result}"
+
+    # 规则9：撤销整理桌面
+    if "撤销" in goal_lower or "恢复" in goal_lower:
+        result = undo_organize_desktop()
+        return f"✅ 使用 undo_organize_desktop，{result}"
+    
     # ===== 如果规则匹配不到，才交给AI =====
     # ... 原有的 AI 决策逻辑（作为备用）
     """Agent 核心逻辑（和之前一样，但工具更多了）"""
@@ -189,23 +223,37 @@ def run_agent(user_goal):
     else:
         return f"❌ 工具 '{decision['tool']}' 不存在"
 
-# ===== 测试 =====
+# ===== 交互模式 =====
 if __name__ == "__main__":
-    print("🤖 完整 Agent 系统（7个工具）")
-    print("="*50)
+    print("=" * 50)
+    print("🤖 桌面管家 Agent 已启动")
+    print("=" * 50)
+    print("支持的功能：")
+    print("  📁 整理桌面")
+    print("  🔍 扫描无用文件")
+    print("  ↩️  撤销整理")
+    print("  📄 总结文档")
+    print("  📊 生成日报")
+    print("  📂 筛选 Excel")
+    print("  ❓ 基于文档提问")
+    print("-" * 50)
+    print("输入 'exit' 或 'quit' 退出")
+    print("=" * 50)
     
-    # 测试1：文档摘要
-    print("\n【测试1】用户：总结 article.txt")
-    print(run_agent("总结 article.txt"))
-    
-    # 测试2：生成日报
-    print("\n【测试2】用户：生成今天的日报")
-    print(run_agent("生成今天的日报"))
-    
-    # 测试3：Excel筛选
-    print("\n【测试3】用户：筛选 data.xlsx 中 部门 等于 销售 的行")
-    print(run_agent("筛选 data.xlsx 中 部门 等于 销售 的行"))
-
-    #测试4：article.txt 里说了什么？
-    print("\n【测试4】用户：article.txt 里说了什么？")
-    print(run_agent("article.txt 里说了什么？"))
+    while True:
+        try:
+            user_input = input("\n🧑 你：")
+            if user_input.lower() in ['exit', 'quit']:
+                print("👋 再见！")
+                break
+            if not user_input.strip():
+                continue
+            
+            response = run_agent(user_input)
+            print(f"🤖 Agent：{response}")
+            
+        except KeyboardInterrupt:
+            print("\n👋 再见！")
+            break
+        except Exception as e:
+            print(f"❌ 出错：{e}")
