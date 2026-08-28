@@ -9,7 +9,8 @@ from tools_legacy import (
     generate_daily_report,
     organize_desktop,
     find_useless_files,
-    undo_organize_desktop
+    undo_organize_desktop,
+    scan_desktop_changes
 )
 from rag_tool import ask_document
 
@@ -47,6 +48,10 @@ TOOLS = {
     "undo_organize_desktop": {
         "func": undo_organize_desktop,
         "description": "撤销桌面整理，把刚才整理到各文件夹的文件全部移回桌面。当用户要求'撤销整理'、'恢复文件'时使用。无需参数"
+    },
+    "scan_desktop_changes": {
+        "func": scan_desktop_changes,
+        "description": "监控桌面文件变化，显示新增、修改、删除的文件。当用户询问'新增了哪些文件'、'今天加了什么'、'桌面有什么变化'时使用。无需参数"
     }
 }
 
@@ -56,48 +61,8 @@ def run_agent(user_goal):
     
     # ===== 意图识别层（100%准确，不依赖AI） =====
     goal_lower = user_goal.lower()
-    
-    # 规则1：总结文档
-    if "总结" in goal_lower or "摘要" in goal_lower or "概括" in goal_lower:
-        import re
-        # 提取文件名
-        match = re.search(r'(\w+\.\w+)', user_goal)
-        filename = match.group(1) if match else "article.txt"
-        result = summarize_document(filename)
-        return f"✅ 使用 summarize_document，{result}"
-    
-    # 规则2：生成日报
-    if "日报" in goal_lower or "今日报告" in goal_lower or "今天的日报" in goal_lower:
-        result = generate_daily_report()
-        return f"✅ 使用 generate_daily_report，{result}"
-    
-    # 规则3：Excel筛选
-    if "筛选" in goal_lower and ".xlsx" in goal_lower:
-        # 提取文件名、列名、值
-        import re
-        # 匹配：筛选 data.xlsx 中 部门 等于 销售 的行
-        match = re.search(r'筛选\s+(\S+\.xlsx)\s+中\s+(\S+)\s+等于\s+(\S+)', user_goal)
-        if match:
-            filename, column, value = match.groups()
-            result = filter_excel(filename, column, value)
-            return f"✅ 使用 filter_excel，{result}"
-        else:
-            return "无法解析筛选条件，请使用格式：筛选 文件名.xlsx 中 列名 等于 值"
-    
-    # 规则4：计算
-    if "计算" in goal_lower:
-        import re
-        match = re.search(r'计算\s+(.+)', user_goal)
-        if match:
-            result = calculator(match.group(1))
-            return f"✅ 使用 calculator，{result}"
-    
-    # 规则5：时间
-    if "时间" in goal_lower or "几点" in goal_lower:
-        result = get_current_time()
-        return f"✅ 使用 get_current_time，{result}"
-    
-    # ===== RAG规则（放在扫描前面） =====
+
+    # ===== 规则1：RAG（放在扫描前面） =====
     if "说了什么" in goal_lower or "内容" in goal_lower or "讲" in goal_lower or "是什么" in goal_lower:
         import re
         # 提取文件名
@@ -111,33 +76,77 @@ def run_agent(user_goal):
             result = ask_document(user_goal)
             return f"✅ 使用 ask_document，{result}"
 
-    # 规则6：文件扫描
-    if "扫描" in goal_lower or "文件" in goal_lower:
-        import re
-        match = re.search(r'扫描\s+(\S+)', user_goal)
-        directory = match.group(1) if match else "."
-        result = scan_files(directory)
-        return f"✅ 使用 scan_files，{result}"
-
-    # 规则7：整理桌面
+    # 规则2：监控新增
+    if "新增" in goal_lower or "变化" in goal_lower or "加了" in goal_lower or "新文件" in goal_lower:
+        result = scan_desktop_changes()
+        return f"✅ 使用 scan_desktop_changes，{result}"
+    
+    # 规则3：整理桌面
     if "整理桌面" in goal_lower or "整理文件" in goal_lower:
         if "预览" in goal_lower:
             result = organize_desktop(dry_run=True)
         else:
             result = organize_desktop(dry_run=False)
         return f"✅ 使用 organize_desktop，{result}"
-
-
-    # 规则8：显示无用文件/缓存文件
-    if "无用" in goal_lower or "缓存" in goal_lower or "临时" in goal_lower or "清理" in goal_lower:
-        result = find_useless_files()
-        return f"✅ 使用 find_useless_files，{result}"
-
-    # 规则9：撤销整理桌面
+    
+    # 规则4：撤销整理桌面
     if "撤销" in goal_lower or "恢复" in goal_lower:
         result = undo_organize_desktop()
         return f"✅ 使用 undo_organize_desktop，{result}"
     
+    # 规则5：显示无用文件/缓存文件
+    if "无用" in goal_lower or "缓存" in goal_lower or "临时" in goal_lower or "清理" in goal_lower:
+        result = find_useless_files()
+        return f"✅ 使用 find_useless_files，{result}"
+
+    # 规则6：总结文档
+    if "总结" in goal_lower or "摘要" in goal_lower or "概括" in goal_lower:
+        import re
+        # 提取文件名
+        match = re.search(r'(\w+\.\w+)', user_goal)
+        filename = match.group(1) if match else "article.txt"
+        result = summarize_document(filename)
+        return f"✅ 使用 summarize_document，{result}"
+    
+    # 规则7：生成日报
+    if "日报" in goal_lower or "今日报告" in goal_lower or "今天的日报" in goal_lower:
+        result = generate_daily_report()
+        return f"✅ 使用 generate_daily_report，{result}"
+    
+    # 规则8：Excel筛选
+    if "筛选" in goal_lower and ".xlsx" in goal_lower:
+        # 提取文件名、列名、值
+        import re
+        # 匹配：筛选 data.xlsx 中 部门 等于 销售 的行
+        match = re.search(r'筛选\s+(\S+\.xlsx)\s+中\s+(\S+)\s+等于\s+(\S+)', user_goal)
+        if match:
+            filename, column, value = match.groups()
+            result = filter_excel(filename, column, value)
+            return f"✅ 使用 filter_excel，{result}"
+        else:
+            return "无法解析筛选条件，请使用格式：筛选 文件名.xlsx 中 列名 等于 值"
+    
+    # 规则9：计算
+    if "计算" in goal_lower:
+        import re
+        match = re.search(r'计算\s+(.+)', user_goal)
+        if match:
+            result = calculator(match.group(1))
+            return f"✅ 使用 calculator，{result}"
+    
+    # 规则10：时间
+    if "时间" in goal_lower or "几点" in goal_lower:
+        result = get_current_time()
+        return f"✅ 使用 get_current_time，{result}"
+    
+    # 规则11：文件扫描
+    if "扫描" in goal_lower or "文件" in goal_lower:
+        import re
+        match = re.search(r'扫描\s+(\S+)', user_goal)
+        directory = match.group(1) if match else "."
+        result = scan_files(directory)
+        return f"✅ 使用 scan_files，{result}"
+   
     # ===== 如果规则匹配不到，才交给AI =====
     # ... 原有的 AI 决策逻辑（作为备用）
     """Agent 核心逻辑（和之前一样，但工具更多了）"""

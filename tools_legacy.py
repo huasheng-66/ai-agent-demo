@@ -5,6 +5,8 @@ import ollama
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import json
+from datetime import datetime
 
 # ===== 工具1：文档摘要（来自 doc_summarizer.py） =====
 def summarize_document(filepath):
@@ -302,3 +304,78 @@ def undo_organize_desktop():
         return "没有找到需要撤销的文件，可能已经撤销过了"
     
     return f"✅ 已撤销 {len(moved_back)} 个文件：\n" + "\n".join(moved_back[:20])
+
+# ===== 工具8：监控桌面新增文件 =====
+def scan_desktop_changes():
+    """
+    监控桌面文件变化：新增、删除、修改
+    第一次运行保存基线，之后对比显示变化
+    """
+    desktop = Path.home() / "Desktop"
+    snapshot_file = Path.home() / "Desktop" / ".desktop_snapshot.json"
+    
+    # 1. 扫描当前桌面状态
+    current = {}
+    for file in desktop.iterdir():
+        if file.is_file() and not file.name.startswith("desktop.ini"):
+            current[file.name] = {
+                "size": file.stat().st_size,
+                "mtime": file.stat().st_mtime,
+                "modified": datetime.fromtimestamp(file.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+            }
+    
+    # 2. 如果不存在快照文件，创建基线
+    if not snapshot_file.exists():
+        with open(snapshot_file, "w", encoding="utf-8") as f:
+            json.dump(current, f, indent=2, ensure_ascii=False)
+        return "📸 已记录当前桌面状态作为基线。下次运行将显示变化。"
+    
+    # 3. 读取上一次的快照
+    with open(snapshot_file, "r", encoding="utf-8") as f:
+        previous = json.load(f)
+    
+    # 4. 对比变化
+    added = []
+    removed = []
+    modified = []
+    
+    # 新增的文件
+    for name in current:
+        if name not in previous:
+            added.append(f"  ➕ {name}（{current[name]['modified']}）")
+        elif current[name]["mtime"] != previous[name]["mtime"]:
+            modified.append(f"  ✏️ {name}（修改于 {current[name]['modified']}）")
+    
+    # 删除的文件
+    for name in previous:
+        if name not in current:
+            removed.append(f"  ❌ {name}")
+    
+    # 5. 更新快照
+    with open(snapshot_file, "w", encoding="utf-8") as f:
+        json.dump(current, f, indent=2, ensure_ascii=False)
+    
+    # 6. 生成报告
+    report = []
+    if not added and not removed and not modified:
+        return "📌 桌面没有变化，一切如常。"
+    
+    if added:
+        report.append(f"\n📥 新增文件（{len(added)} 个）：")
+        report.extend(added[:10])
+        if len(added) > 10:
+            report.append(f"  ... 还有 {len(added)-10} 个")
+    
+    if modified:
+        report.append(f"\n📝 修改过的文件（{len(modified)} 个）：")
+        report.extend(modified[:10])
+        if len(modified) > 10:
+            report.append(f"  ... 还有 {len(modified)-10} 个")
+    
+    if removed:
+        report.append(f"\n🗑️ 删除的文件（{len(removed)} 个）：")
+        report.extend(removed[:10])
+        if len(removed) > 10:
+            report.append(f"  ... 还有 {len(removed)-10} 个")
+    
+    return "\n".join(report)
