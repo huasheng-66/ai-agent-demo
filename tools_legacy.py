@@ -379,3 +379,36 @@ def scan_desktop_changes():
             report.append(f"  ... 还有 {len(removed)-10} 个")
     
     return "\n".join(report)
+
+    # ===== 工具9：搜索桌面及子文件夹中的文件 =====
+def search_desktop_files(keyword):
+    """
+    按文件名关键词搜索桌面及子文件夹中的文件
+    参数：keyword - 要搜索的关键词
+    返回：匹配的文件列表（路径）
+    """
+    desktop = Path.home() / "Desktop"
+    results = []
+    
+    # 递归搜索所有文件（不包含隐藏系统文件）
+    for file in desktop.rglob("*"):
+        if not file.is_file():
+            continue
+        if file.name.startswith("desktop.ini") or file.name.startswith("."):
+            continue
+        if keyword.lower() in file.name.lower():
+            # 只显示相对路径（相对桌面）
+            rel_path = file.relative_to(desktop)
+            results.append(str(rel_path))
+    
+    if not results:
+        return f"🔍 未找到包含 '{keyword}' 的文件"
+    
+    # 限制显示前15条
+    result_str = f"🔍 找到 {len(results)} 个包含 '{keyword}' 的文件：\n"
+    for i, path in enumerate(results[:15], 1):
+        result_str += f"  {i}. {path}\n"
+    if len(results) > 15:
+        result_str += f"  ... 还有 {len(results)-15} 个文件"
+    
+    return result_str

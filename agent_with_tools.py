@@ -10,7 +10,8 @@ from tools_legacy import (
     organize_desktop,
     find_useless_files,
     undo_organize_desktop,
-    scan_desktop_changes
+    scan_desktop_changes,
+    search_desktop_files
 )
 from rag_tool import ask_document
 
@@ -52,6 +53,10 @@ TOOLS = {
     "scan_desktop_changes": {
         "func": scan_desktop_changes,
         "description": "监控桌面文件变化，显示新增、修改、删除的文件。当用户询问'新增了哪些文件'、'今天加了什么'、'桌面有什么变化'时使用。无需参数"
+    },
+    "search_desktop_files": {
+        "func": search_desktop_files,
+        "description": "按文件名关键词搜索桌面文件。当用户要求'找'、'搜索'、'查找'某个文件时使用。参数：keyword(搜索关键词)"
     }
 }
 
@@ -75,6 +80,28 @@ def run_agent(user_goal):
             # 没有指定文件，尝试用默认的 article.txt
             result = ask_document(user_goal)
             return f"✅ 使用 ask_document，{result}"
+
+    # 规则：搜索文件
+    if "找" in goal_lower or "搜索" in goal_lower or "查找" in goal_lower or "在哪里" in goal_lower:
+        # 提取关键词：从指令中提取"找"后面的词
+        import re
+        match = re.search(r'(?:找|搜索|查找)\s*(.+?)(?:文件)?$', user_goal)
+        if match:
+            keyword = match.group(1).strip()
+        else:
+            # 如果提取失败，取整个指令去掉动作词
+            for word in ["找", "搜索", "查找", "在哪里"]:
+                if word in goal_lower:
+                    keyword = goal_lower.replace(word, "").strip()
+                    break
+            else:
+                keyword = user_goal.strip()
+        
+        if keyword:
+            result = search_desktop_files(keyword)
+            return f"✅ 使用 search_desktop_files，{result}"
+        else:
+            return "请提供要搜索的关键词"
 
     # 规则2：监控新增
     if "新增" in goal_lower or "变化" in goal_lower or "加了" in goal_lower or "新文件" in goal_lower:
