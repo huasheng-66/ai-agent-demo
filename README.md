@@ -29,11 +29,20 @@
 | send_email | 发送邮件 |
 | rename_files | 批量重命名 |
 | generate_daily_report | 生成日报 |
-| **ask_document** | **RAG 问答（基于文档内容回答问题）** |
+| ask_document | RAG 问答（基于文档内容回答问题） |
 | organize_desktop | 整理桌面 |
 | undo_organize_desktop | 撤销整理 |
 | find_useless_files | 扫描无用文件 |
 
+## 🧹 桌面管家功能
+
+| 功能 | 触发指令 |
+|------|---------|
+| 整理桌面（预览/执行） | "预览整理桌面" / "整理桌面" |
+| 撤销整理 | "撤销整理桌面" |
+| 扫描无用文件 | "扫描无用文件" |
+| 监控新增文件 | "新增了什么文件" |
+| 快速查找文件 | "找 关键词" / "搜索 关键词" |
 
 ## 🚀 快速开始
 
